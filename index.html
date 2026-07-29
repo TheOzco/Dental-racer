@@ -355,7 +355,7 @@
     roadOffset = (roadOffset + speed*dt) % 80;
 
     // player smooth lane move
-    player.x += (player.targetX - player.x) * Math.min(1, dt*12);
+    player.x += (player.targetX - player.x) * Math.min(1, dt*20);
     if(player.hitFlash > 0) player.hitFlash -= dt;
 
     spawnTimer += dt;
