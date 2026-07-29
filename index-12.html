@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>دندون ریسر 🦷</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height:100%; background:linear-gradient(180deg,#8ec9ff 0%,#c9e8ff 40%,#eaf6ff 100%);
+    font-family: "Vazirmatn","Tahoma",sans-serif; overflow:hidden; touch-action:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #wrap {
+    position:relative; width:100%; max-width:480px; height:100vh; max-height:900px;
+    margin:0 auto; background:#dff1ff; overflow:hidden;
+    box-shadow:0 0 40px rgba(0,0,0,.25);
+  }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  #hud {
+    position:absolute; top:0; left:0; right:0; padding:12px 16px;
+    display:flex; justify-content:space-between; align-items:center;
+    color:#fff; font-weight:bold; text-shadow:0 2px 4px rgba(0,0,0,.35);
+    z-index:5; pointer-events:none; font-size:18px;
+  }
+  #hearts span { font-size:20px; margin-inline-start:2px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
+
+  .overlay {
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(10,30,55,.55); backdrop-filter: blur(2px); color:#fff; text-align:center; z-index:10; padding:24px;
+  }
+  .hidden { display:none !important; }
+  .panel {
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.35);
+    border-radius:20px; padding:28px 24px; max-width:340px; width:100%;
+  }
+  h1 { font-size:26px; margin-bottom:6px; }
+  h2 { font-size:22px; margin-bottom:10px; }
+  p.sub { opacity:.9; margin-bottom:18px; line-height:1.9; font-size:14px; }
+  button {
+    font-family:inherit; font-weight:bold; font-size:17px; color:#08324f;
+    background:linear-gradient(180deg,#ffffff,#dff0ff); border:none; border-radius:14px;
+    padding:14px 28px; cursor:pointer; box-shadow:0 6px 0 #9fc9e6, 0 8px 14px rgba(0,0,0,.25);
+    transition:transform .05s ease; width:100%;
+  }
+  button:active { transform:translateY(4px); box-shadow:0 2px 0 #9fc9e6; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:14px 0; font-size:13px; }
+  .legend div { background:rgba(255,255,255,.15); padding:6px 10px; border-radius:10px; }
+  .score-line { font-size:16px; margin-bottom:4px; }
+  .big-score { font-size:42px; font-weight:900; margin:8px 0; }
+  #touchHint { font-size:12px; opacity:.85; margin-top:14px; }
+
+  #stageBanner {
+    position:absolute; top:18%; left:50%; transform:translate(-50%,-10px);
+    background:rgba(0,0,0,.55); color:#fff; padding:10px 22px; border-radius:14px;
+    font-weight:bold; font-size:18px; z-index:6; opacity:0; transition:opacity .35s ease, transform .35s ease;
+    pointer-events:none; white-space:nowrap;
+  }
+  #stageBanner.show { opacity:1; transform:translate(-50%,0); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div id="hearts"></div>
+    <div id="scoreLabel">امتیاز: 0</div>
+  </div>
+  <div id="stageBanner"></div>
+
+  <div class="overlay" id="startScreen">
+    <div class="panel">
+      <h1>🦷 دندون ریسر</h1>
+      <p class="sub">یه دندونِ آسیاب سالم رو تو ۴ لاین برون و از خوراکی‌های خرابکننده‌ی دندون فرار کن!</p>
+      <div class="legend">
+        <div>🍬 آبنبات</div>
+        <div>🥤 نوشابه</div>
+        <div>🍫 شکلات</div>
+        <div>🍪 کلوچه</div>
+        <div>🍦 بستنی</div>
+      </div>
+      <div class="legend">
+        <div>🪥 مسواک = امتیاز</div>
+        <div>🍎 سیب = جون اضافه</div>
+      </div>
+      <button id="startBtn">شروع بازی</button>
+      <div id="touchHint">با کیبورد (چپ/راست) یا لمس صفحه کنترل کن</div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="overScreen">
+    <div class="panel">
+      <h2>😖 دندونت خراب شد!</h2>
+      <div class="score-line">امتیاز نهایی</div>
+      <div class="big-score" id="finalScore">0</div>
+      <div class="score-line" id="bestScoreLine">رکورد: 0</div>
+      <button id="retryBtn">دوباره بازی کن</button>
+      <div style="height:10px"></div>
+      <button id="menuBtn" style="background:linear-gradient(180deg,#e9f3ff,#c9e0f5); box-shadow:0 6px 0 #8fb3cc, 0 8px 14px rgba(0,0,0,.25);">بازگشت به منو</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('wrap');
+  const startScreen = document.getElementById('startScreen');
+  const overScreen = document.getElementById('overScreen');
+  const startBtn = document.getElementById('startBtn');
+  const retryBtn = document.getElementById('retryBtn');
+  const menuBtn = document.getElementById('menuBtn');
+  const scoreLabel = document.getElementById('scoreLabel');
+  const heartsEl = document.getElementById('hearts');
+  const finalScoreEl = document.getElementById('finalScore');
+  const bestScoreLine = document.getElementById('bestScoreLine');
+  const stageBannerEl = document.getElementById('stageBanner');
+
+  let W, H, laneCount = 4, laneW;
+  function resize(){
+    W = wrap.clientWidth; H = wrap.clientHeight;
+    canvas.width = W; canvas.height = H;
+    laneW = W / laneCount;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const BEST_KEY = 'toothRacerBest';
+  let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
+
+  // ---------- Game state ----------
+  let state = 'menu'; // menu | playing | over
+  let player;
+  let obstacles = [];
+  let particles = [];
+  let score = 0, lives = 3, speed = 0, spawnTimer = 0, spawnInterval = 1.1, elapsed = 0;
+  let roadOffset = 0;
+  let decayLevel = 0; // 0..3 visual decay stages on the tooth
+
+  const BAD_ITEMS = [
+    { key:'candy', emoji:'🍬', color:'#ff5da2' },
+    { key:'soda',  emoji:'🥤', color:'#e05a4e' },
+    { key:'choco', emoji:'🍫', color:'#7a4a2b' },
+    { key:'cookie',emoji:'🍪', color:'#c98a4b' },
+    { key:'ice',   emoji:'🍦', color:'#ffd9e8' },
+    { key:'cake',  emoji:'🍰', color:'#f7b6c2' },
+    { key:'donut', emoji:'🍩', color:'#e8a13d' },
+  ];
+  const GOOD_ITEMS = [
+    { key:'brush', emoji:'🪥', color:'#4fc3f7', type:'score', imgSrc:'assets/brush.png' },
+    { key:'apple', emoji:'🍎', color:'#ff5252', type:'life', imgSrc:'assets/apple.png' },
+  ];
+
+  // Preload images for good items. If the file is missing or fails to load,
+  // we silently fall back to drawing the emoji version instead.
+  GOOD_ITEMS.forEach(item => {
+    if(!item.imgSrc) return;
+    const img = new Image();
+    img.onload = () => { item.imgLoaded = true; };
+    img.onerror = () => { item.imgLoaded = false; };
+    img.src = item.imgSrc;
+    item.img = img;
+    item.imgLoaded = false;
+  });
+
+  // ---------- Difficulty stages ----------
+  // threshold = min score to enter this stage.
+  // speedMul / spawnMul scale the base ramp; dualChance = probability of a
+  // second obstacle spawning in another lane at the same time.
+  const STAGES = [
+    { threshold:0,   name:'مرحله ۱ · شروع آروم 🦷',      speedMul:1.0, spawnMul:1.0, dualChance:0 },
+    { threshold:120, name:'مرحله ۲ · سرعت می‌گیریم 🍬',   speedMul:1.15, spawnMul:0.85, dualChance:0.08 },
+    { threshold:300, name:'مرحله ۳ · هجوم شکر 🍭',        speedMul:1.3, spawnMul:0.7, dualChance:0.22 },
+    { threshold:550, name:'مرحله ۴ · طوفان خوراکی 🍩',    speedMul:1.5, spawnMul:0.58, dualChance:0.32 },
+    { threshold:850, name:'مرحله ۵ · بی‌رحم! 🔥',         speedMul:1.75, spawnMul:0.48, dualChance:0.4 },
+    { threshold:1200,name:'مرحله ۶ · جهنم شیرینی 💀',     speedMul:2.0, spawnMul:0.4, dualChance:0.48 },
+  ];
+  let stageIndex = 0;
+  let bannerHideTimer = null;
+
+  function showStageBanner(text){
+    stageBannerEl.textContent = text;
+    stageBannerEl.classList.add('show');
+    if(bannerHideTimer) clearTimeout(bannerHideTimer);
+    bannerHideTimer = setTimeout(()=> stageBannerEl.classList.remove('show'), 1800);
+  }
+
+  function checkStage(){
+    let next = stageIndex;
+    for(let i=STAGES.length-1;i>=0;i--){
+      if(score >= STAGES[i].threshold){ next = i; break; }
+    }
+    if(next !== stageIndex){
+      stageIndex = next;
+      showStageBanner(STAGES[stageIndex].name);
+    }
+  }
+
+  function laneCenterX(lane){ return lane*laneW + laneW/2; }
+
+  function initGame(){
+    player = {
+      lane: 1, // 0..3, start second lane
+      x: laneCenterX(1),
+      targetX: laneCenterX(1),
+      y: 0,
+      w: Math.min(laneW*0.62, 70),
+      h: Math.min(laneW*0.78, 92),
+      shield: 0,
+      hitFlash: 0,
+    };
+    player.y = H - player.h - 40;
+    obstacles = [];
+    particles = [];
+    score = 0;
+    lives = 3;
+    decayLevel = 0;
+    speed = H * 0.22; // px per second
+    spawnTimer = 0;
+    spawnInterval = 1.1;
+    elapsed = 0;
+    roadOffset = 0;
+    stageIndex = 0;
+    stageBannerEl.classList.remove('show');
+  }
+
+  function laneFromX(px){
+    let l = Math.floor(px / laneW);
+    return Math.max(0, Math.min(laneCount-1, l));
+  }
+
+  // ---------- Input ----------
+  function moveLane(dir){
+    if(state !== 'playing') return;
+    player.lane = Math.max(0, Math.min(laneCount-1, player.lane + dir));
+    player.targetX = laneCenterX(player.lane);
+  }
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLane(-1);
+    if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveLane(1);
+    if(e.key === 'Enter'){
+      if(state === 'menu') startGame();
+      else if(state === 'over') startGame();
+    }
+  });
+
+  let touchStartX = null;
+  canvas.addEventListener('touchstart', (e)=>{
+    touchStartX = e.touches[0].clientX;
+  }, {passive:true});
+  canvas.addEventListener('touchend', (e)=>{
+    if(touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if(Math.abs(dx) > 30){
+      moveLane(dx > 0 ? 1 : -1);
+    } else {
+      // tap: move toward tap side
+      const rect = canvas.getBoundingClientRect();
+      const tapX = e.changedTouches[0].clientX - rect.left;
+      moveLane(tapX < W/2 ? -1 : 1);
+    }
+    touchStartX = null;
+  });
+  canvas.addEventListener('mousedown', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    moveLane(clickX < W/2 ? -1 : 1);
+  });
+
+  startBtn.addEventListener('click', startGame);
+  retryBtn.addEventListener('click', startGame);
+  menuBtn.addEventListener('click', goToMenu);
+
+  function goToMenu(){
+    state = 'menu';
+    overScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+    positionMenuPlayer();
+  }
+
+  function startGame(){
+    initGame();
+    state = 'playing';
+    startScreen.classList.add('hidden');
+    overScreen.classList.add('hidden');
+    updateHUD();
+  }
+
+  function gameOver(){
+    state = 'over';
+    if(score > best){ best = score; localStorage.setItem(BEST_KEY, String(best)); }
+    finalScoreEl.textContent = Math.floor(score);
+    bestScoreLine.textContent = 'رکورد: ' + Math.floor(best);
+    overScreen.classList.remove('hidden');
+  }
+
+  function updateHUD(){
+    scoreLabel.textContent = 'امتیاز: ' + Math.floor(score);
+    let hearts = '';
+    for(let i=0;i<3;i++){
+      hearts += i < lives ? '<span>❤️</span>' : '<span style="opacity:.25">🤍</span>';
+    }
+    heartsEl.innerHTML = hearts;
+  }
+
+  // ---------- Spawning ----------
+  function spawnObstacle(forceLane){
+    const lane = forceLane !== undefined ? forceLane : Math.floor(Math.random()*laneCount);
+    const isGood = Math.random() < 0.16;
+    const pool = isGood ? GOOD_ITEMS : BAD_ITEMS;
+    const def = pool[Math.floor(Math.random()*pool.length)];
+    const size = Math.min(laneW*0.55, 60);
+    obstacles.push({
+      lane, x: laneCenterX(lane), y: -size,
+      w:size, h:size, def, good:isGood, passed:false
+    });
+    return lane;
+  }
+
+  function spawnWave(){
+    const usedLane = spawnObstacle();
+    const stage = STAGES[stageIndex];
+    if(Math.random() < stage.dualChance){
+      // pick a different lane, leaving at least one safe lane when possible
+      let lane2;
+      do { lane2 = Math.floor(Math.random()*laneCount); } while (lane2 === usedLane && laneCount > 1);
+      spawnObstacle(lane2);
+    }
+  }
+
+  function addParticles(x,y,color,count){
+    for(let i=0;i<count;i++){
+      particles.push({
+        x, y, vx:(Math.random()-0.5)*220, vy:(Math.random()-0.5)*220 - 60,
+        life:1, color
+      });
+    }
+  }
+
+  // ---------- Update ----------
+  let lastTime = null;
+  function update(dt){
+    elapsed += dt;
+    score += dt * 9 * (1 + speed/500);
+    checkStage();
+    const stage = STAGES[stageIndex];
+    const baseSpeed = (H * 0.22 + elapsed * 4.2) * stage.speedMul;
+    speed += (baseSpeed - speed) * Math.min(1, dt*2); // smoothly ease toward stage target speed
+    spawnInterval = Math.max(0.22, (1.15 - elapsed*0.012) * stage.spawnMul);
+
+    roadOffset = (roadOffset + speed*dt) % 80;
+
+    // player smooth lane move
+    player.x += (player.targetX - player.x) * Math.min(1, dt*12);
+    if(player.hitFlash > 0) player.hitFlash -= dt;
+
+    spawnTimer += dt;
+    if(spawnTimer >= spawnInterval){
+      spawnTimer = 0;
+      spawnWave();
+    }
+
+    for(let i=obstacles.length-1;i>=0;i--){
+      const o = obstacles[i];
+      o.y += speed*dt;
+
+      // collision check (AABB, simple)
+      if(!o.passed && o.y + o.h*0.5 > player.y && o.y - o.h*0.5 < player.y + player.h
+         && Math.abs(o.x - player.x) < (o.w+player.w)*0.38){
+        o.passed = true;
+        if(o.good){
+          if(o.def.type === 'life' && lives < 3){ lives++; }
+          else { score += 40; }
+          addParticles(o.x,o.y,'#7CFC00',14);
+          obstacles.splice(i,1);
+          updateHUD();
+          continue;
+        } else {
+          lives--;
+          decayLevel = Math.min(3, 3-lives);
+          player.hitFlash = 0.35;
+          addParticles(o.x,o.y, o.def.color, 18);
+          obstacles.splice(i,1);
+          updateHUD();
+          if(lives <= 0){ gameOver(); return; }
+          continue;
+        }
+      }
+
+      if(o.y - o.h > H + 40){
+        obstacles.splice(i,1);
+      }
+    }
+
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 500*dt; p.life -= dt*1.4;
+      if(p.life <= 0) particles.splice(i,1);
+    }
+
+    scoreLabel.textContent = 'امتیاز: ' + Math.floor(score);
+  }
+
+  // ---------- Drawing ----------
+  function drawTeethEdge(edgeX, isRight){
+    ctx.fillStyle = '#fffdf7';
+    const toothH = 30, w = 15;
+    const count = Math.ceil(H/toothH) + 2;
+    const scroll = (roadOffset*0.4) % toothH;
+    for(let i=-1;i<count;i++){
+      const y = i*toothH + scroll;
+      ctx.beginPath();
+      if(isRight){
+        ctx.moveTo(edgeX, y);
+        ctx.quadraticCurveTo(edgeX-w, y+toothH*0.5, edgeX, y+toothH);
+      } else {
+        ctx.moveTo(edgeX, y);
+        ctx.quadraticCurveTo(edgeX+w, y+toothH*0.5, edgeX, y+toothH);
+      }
+      ctx.lineTo(edgeX, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // gum line behind the teeth
+    ctx.fillStyle = 'rgba(255,120,150,.9)';
+    ctx.fillRect(isRight ? edgeX-4 : edgeX, 0, 4, H);
+  }
+
+  function drawTongue(){
+    // moist pink base
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, '#ff9fb4');
+    grad.addColorStop(0.55, '#ff7f9d');
+    grad.addColorStop(1, '#f75c82');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,W,H);
+
+    // soft glossy sheen
+    ctx.save();
+    ctx.globalAlpha = 0.10;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(W*0.32, H*0.18, W*0.55, H*0.5, 0.25, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // center groove of the tongue
+    ctx.strokeStyle = 'rgba(170,30,60,.35)';
+    ctx.lineWidth = Math.max(3, W*0.012);
+    ctx.beginPath();
+    ctx.moveTo(W/2, -20);
+    ctx.lineTo(W/2, H+20);
+    ctx.stroke();
+
+    // lane fissures (subtle, replacing hard road lines)
+    ctx.strokeStyle = 'rgba(255,255,255,.28)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([18,24]);
+    for(let l=1;l<laneCount;l++){
+      if(Math.abs(l - laneCount/2) < 0.01) continue; // center already drawn thicker
+      const x = l*laneW;
+      ctx.beginPath();
+      ctx.moveTo(x, -80+roadOffset);
+      ctx.lineTo(x, H+80);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // papillae bumps scrolling down the tongue surface
+    const rowH = 42;
+    const rows = Math.ceil(H/rowH) + 2;
+    const cols = 7;
+    const scrollY = roadOffset % rowH;
+    for(let r=-1;r<rows;r++){
+      const y = r*rowH + scrollY;
+      for(let c=0;c<cols;c++){
+        const seed = Math.abs(Math.sin(r*12.9898 + c*78.233) * 43758.5453);
+        const frac = seed - Math.floor(seed);
+        const x = (c+0.5) * (W/cols) + Math.sin(r*2.1 + c)*5;
+        const size = 2.5 + frac*3.5;
+        ctx.beginPath();
+        ctx.ellipse(x, y, size, size*0.7, 0, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,255,'+(0.10+frac*0.16)+')';
+        ctx.fill();
+      }
+    }
+
+    // teeth borders on both sides
+    drawTeethEdge(0, false);
+    drawTeethEdge(W, true);
+  }
+
+  // Draw a healthy molar tooth (player)
+  function drawTooth(x, y, w, h, hitFlash, decay){
+    ctx.save();
+    ctx.translate(x,y);
+
+    // shadow
+    ctx.beginPath();
+    ctx.ellipse(0, h*0.52, w*0.42, h*0.12, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.fill();
+
+    const baseColor = hitFlash > 0 ? '#ffb3b3' : '#ffffff';
+
+    // roots (two, bottom)
+    ctx.fillStyle = '#f2ecd8';
+    roundedRootPath(-w*0.22, h*0.18, w*0.20, h*0.34);
+    ctx.fill();
+    roundedRootPath(w*0.22, h*0.18, w*0.20, h*0.34);
+    ctx.fill();
+
+    // main crown shape (molar top with bumps)
+    ctx.beginPath();
+    ctx.moveTo(-w*0.46, h*0.05);
+    ctx.quadraticCurveTo(-w*0.5, -h*0.28, -w*0.28, -h*0.42);
+    ctx.quadraticCurveTo(-w*0.12, -h*0.5, 0, -h*0.4);
+    ctx.quadraticCurveTo(w*0.12, -h*0.5, w*0.28, -h*0.42);
+    ctx.quadraticCurveTo(w*0.5, -h*0.28, w*0.46, h*0.05);
+    ctx.quadraticCurveTo(w*0.46, h*0.2, w*0.3, h*0.22);
+    ctx.quadraticCurveTo(w*0.15, h*0.14, 0, h*0.2);
+    ctx.quadraticCurveTo(-w*0.15, h*0.14, -w*0.3, h*0.22);
+    ctx.quadraticCurveTo(-w*0.46, h*0.2, -w*0.46, h*0.05);
+    ctx.closePath();
+    ctx.fillStyle = baseColor;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#d8d2c0';
+    ctx.stroke();
+
+    // top ridge lines (molar grooves)
+    ctx.strokeStyle = 'rgba(180,175,150,.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-w*0.2,-h*0.28); ctx.lineTo(-w*0.05,-h*0.05);
+    ctx.moveTo(w*0.2,-h*0.28); ctx.lineTo(w*0.05,-h*0.05);
+    ctx.stroke();
+
+    // decay spots based on decayLevel (0 = healthy)
+    if(decay > 0){
+      ctx.fillStyle = '#8a5a2b';
+      const spots = [[-w*0.18,-h*0.15],[w*0.12,-h*0.05],[0,h*0.05]];
+      for(let i=0;i<decay;i++){
+        ctx.beginPath();
+        ctx.ellipse(spots[i][0], spots[i][1], w*0.07, h*0.05, 0.4, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    // shine highlight
+    ctx.beginPath();
+    ctx.ellipse(-w*0.18, -h*0.22, w*0.09, h*0.06, -0.5, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fill();
+
+    // cute face (only if fairly healthy)
+    if(decay < 3){
+      ctx.fillStyle = '#2b2b2b';
+      ctx.beginPath();
+      ctx.ellipse(-w*0.12, -h*0.05, w*0.035, h*0.045, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(w*0.12, -h*0.05, w*0.035, h*0.045, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, h*0.02, w*0.09, 0.15*Math.PI, 0.85*Math.PI);
+      ctx.strokeStyle = '#2b2b2b';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    if(hitFlash > 0){
+      ctx.globalAlpha = Math.min(0.5, hitFlash);
+      ctx.fillStyle = '#ff0000';
+      ctx.beginPath();
+      ctx.ellipse(0,0,w*0.55,h*0.55,0,0,Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+  }
+
+  function roundedRootPath(cx, cy, w, h){
+    ctx.beginPath();
+    ctx.moveTo(cx-w*0.5, cy);
+    ctx.quadraticCurveTo(cx-w*0.5, cy+h, cx, cy+h*1.15);
+    ctx.quadraticCurveTo(cx+w*0.5, cy+h, cx+w*0.5, cy);
+    ctx.closePath();
+  }
+
+  function drawObstacle(o){
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    // shadow
+    ctx.beginPath();
+    ctx.ellipse(0, o.h*0.42, o.w*0.35, o.h*0.1, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,.2)';
+    ctx.fill();
+
+    if(o.good && o.def.imgLoaded){
+      // white circular backing so any image (even non-transparent) looks clean
+      ctx.beginPath();
+      ctx.arc(0,0,o.w*0.48,0,Math.PI*2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0,0,o.w*0.46,0,Math.PI*2);
+      ctx.clip();
+      ctx.drawImage(o.def.img, -o.w*0.46, -o.h*0.46, o.w*0.92, o.h*0.92);
+      ctx.restore();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#7CFC00';
+      ctx.beginPath();
+      ctx.arc(0,0,o.w*0.46,0,Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // circle bg (fallback emoji rendering)
+    ctx.beginPath();
+    ctx.arc(0,0,o.w*0.46,0,Math.PI*2);
+    ctx.fillStyle = o.good ? 'rgba(255,255,255,.9)' : o.def.color;
+    ctx.fill();
+    if(!o.good){
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,.6)';
+      ctx.stroke();
+    } else {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#7CFC00';
+      ctx.stroke();
+    }
+    ctx.font = (o.w*0.6)+'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(o.def.emoji, 0, 2);
+    ctx.restore();
+  }
+
+  function drawParticles(){
+    for(const p of particles){
+      ctx.globalAlpha = Math.max(0,p.life);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,4,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function render(){
+    drawTongue();
+    for(const o of obstacles) drawObstacle(o);
+    if(state !== 'menu'){
+      drawTooth(player.x, player.y + player.h/2, player.w, player.h, player.hitFlash, decayLevel);
+    }
+    drawParticles();
+  }
+
+  function loop(ts){
+    if(lastTime === null) lastTime = ts;
+    let dt = (ts - lastTime)/1000;
+    dt = Math.min(dt, 0.05);
+    lastTime = ts;
+
+    try{
+      if(state === 'playing'){
+        update(dt);
+      }
+      render();
+    } catch(err){
+      console.error('Game loop error:', err);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // idle preview tooth on menu
+  player = { x: 0, y:0, w:70, h:92, hitFlash:0 };
+  function positionMenuPlayer(){
+    player.x = W/2; player.y = H*0.55; player.w = Math.min(laneW*0.62,70); player.h = Math.min(laneW*0.78,92);
+  }
+  positionMenuPlayer();
+  window.addEventListener('resize', ()=>{ if(state!=='playing') positionMenuPlayer(); });
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
