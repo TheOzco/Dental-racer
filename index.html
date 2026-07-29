@@ -524,51 +524,7 @@
   ctx.restore();
 }
 
-    // decay spots based on decayLevel (0 = healthy)
-    if(decay > 0){
-      ctx.fillStyle = '#8a5a2b';
-      const spots = [[-w*0.18,-h*0.15],[w*0.12,-h*0.05],[0,h*0.05]];
-      for(let i=0;i<decay;i++){
-        ctx.beginPath();
-        ctx.ellipse(spots[i][0], spots[i][1], w*0.07, h*0.05, 0.4, 0, Math.PI*2);
-        ctx.fill();
-      }
-    }
-
-    // shine highlight
-    ctx.beginPath();
-    ctx.ellipse(-w*0.18, -h*0.22, w*0.09, h*0.06, -0.5, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,255,255,.85)';
-    ctx.fill();
-
-    // cute face (only if fairly healthy)
-    if(decay < 3){
-      ctx.fillStyle = '#2b2b2b';
-      ctx.beginPath();
-      ctx.ellipse(-w*0.12, -h*0.05, w*0.035, h*0.045, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(w*0.12, -h*0.05, w*0.035, h*0.045, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(0, h*0.02, w*0.09, 0.15*Math.PI, 0.85*Math.PI);
-      ctx.strokeStyle = '#2b2b2b';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    if(hitFlash > 0){
-      ctx.globalAlpha = Math.min(0.5, hitFlash);
-      ctx.fillStyle = '#ff0000';
-      ctx.beginPath();
-      ctx.ellipse(0,0,w*0.55,h*0.55,0,0,Math.PI*2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-
-    ctx.restore();
-  }
-
+    
   function roundedRootPath(cx, cy, w, h){
     ctx.beginPath();
     ctx.moveTo(cx-w*0.5, cy);
